@@ -9,36 +9,28 @@ def replace_links(input_file, output_file, old_link, new_link):
         wb = xw.Book(input_file)
 
         for sheet in wb.sheets:
-            used_range = sheet.api.UsedRange
+            rng = sheet.used_range
 
-            # Ganze Range als Array holen (viel stabiler als cell-by-cell)
-            formulas = used_range.Formula
-            values = used_range.Value
+            for cell in rng:
 
-            # Excel gibt bei 1 Zelle manchmal kein 2D-Array zurück
-            if not isinstance(formulas, (list, tuple)):
-                formulas = [[formulas]]
-                values = [[values]]
+                # --- FORMELN (wichtig: niemals .value anfassen bei Formeln) ---
+                if cell.formula:
+                    try:
+                        formula = cell.formula
 
-            rows = len(formulas)
-            cols = len(formulas[0])
+                        if isinstance(formula, str) and old_link in formula:
+                            cell.formula = formula.replace(old_link, new_link)
 
-            for i in range(rows):
-                for j in range(cols):
+                    except Exception:
+                        pass
 
-                    # 1. Formel behalten!
-                    if formulas[i][j] and isinstance(formulas[i][j], str) and formulas[i][j].startswith("="):
-                        formulas[i][j] = formulas[i][j].replace(old_link, new_link)
+                # --- NORMALE TEXTE ---
+                if cell.value and isinstance(cell.value, str):
+                    # nur ersetzen wenn es KEINE Formel ist
+                    if not (isinstance(cell.formula, str) and cell.formula.startswith("=")):
+                        cell.value = cell.value.replace(old_link, new_link)
 
-                    # 2. Normale Texte (keine Formeln!)
-                    elif values[i][j] and isinstance(values[i][j], str):
-                        values[i][j] = values[i][j].replace(old_link, new_link)
-
-            # Zurückschreiben OHNE Formeln zu zerstören
-            used_range.Formula = formulas
-            used_range.Value = values
-
-        # Workbook Links (Excel interne Verknüpfungen)
+        # --- Workbook-Level Links ---
         try:
             links = wb.api.LinkSources()
             if links:
@@ -62,10 +54,16 @@ def replace_links(input_file, output_file, old_link, new_link):
 
 
 if __name__ == "__main__":
+    # --- HARDCODED ---
     input_excel = r"C:\data\input.xlsx"
     output_excel = r"C:\data\output.xlsx"
 
     old_excel_file = r"C:\data\old_file.xlsx"
     new_excel_file = r"C:\data\new_file.xlsx"
 
-    replace_links(input_excel, output_excel, old_excel_file, new_excel_file)
+    replace_links(
+        input_excel,
+        output_excel,
+        old_excel_file,
+        new_excel_file
+    )
